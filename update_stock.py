@@ -23,9 +23,9 @@ def build(raw):
         url='https://jorgepinheiro.pt/carros/%s/%s/%s/'%(slug(marca),slug(modelo),ident)
         files=sorted(c['Ficheiros'],key=lambda x:not x.get('Principal'))
         if not files: continue
-        image=files[0]['Ficheiro']
-        if not image.startswith('https://cdn.easysite.pt/pub/21996/'): raise ValueError('Imagem fora do catálogo')
-        cars.append(dict(id=ident,title=marca+' '+modelo,version=c.get('VersaoAlternatica') or c.get('Motorizacao',''),year=c['Ano'],km=c['Km'],fuel=c['Combustivel']['Nome'],price=None if c.get('NaoExportarPreco') else c['Preco'],url=url,source_image=image,sold=False,reserved=False))
+        images=list(dict.fromkeys(f['Ficheiro'] for f in files))[:4]
+        if any(not image.startswith('https://cdn.easysite.pt/pub/21996/') for image in images): raise ValueError('Imagem fora do catálogo')
+        cars.append(dict(id=ident,title=marca+' '+modelo,version=c.get('VersaoAlternatica') or c.get('Motorizacao',''),year=c['Ano'],km=c['Km'],fuel=c['Combustivel']['Nome'],price=None if c.get('NaoExportarPreco') else c['Preco'],url=url,source_images=images,sold=False,reserved=False))
     if not cars: raise ValueError('Sem viaturas disponíveis: manter publicação anterior e investigar')
     return cars
 
@@ -36,10 +36,15 @@ def main():
     # All assets must succeed before publishing a new catalogue. CI deployment is atomic.
     assets=ROOT/'assets'; assets.mkdir(exist_ok=True)
     for c in cars:
-        ident=c['id']; image=Image.open(io.BytesIO(fetch(c.pop('source_image')))).convert('RGB')
-        image.thumbnail((1600,1200)); image.save(assets/(ident+'.jpg'),quality=88)
+        ident=c['id']; c['images']=[]
+        for number, source in enumerate(c.pop('source_images')):
+            image=Image.open(io.BytesIO(fetch(source))).convert('RGB')
+            image.thumbnail((1600,1200))
+            filename=ident+'-'+str(number+1)+'.jpg'
+            image.save(assets/filename,quality=88)
+            c['images'].append('assets/'+filename)
         qrcode.make(c['url'],error_correction=qrcode.constants.ERROR_CORRECT_M,box_size=10,border=4).save(assets/(ident+'-qr.png'))
-        c['image']='assets/'+ident+'.jpg'; c['qr']='assets/'+ident+'-qr.png'
+        c['image']=c['images'][0]; c['qr']='assets/'+ident+'-qr.png'
     data=dict(updated_at=datetime.now(timezone.utc).isoformat(),source='https://jorgepinheiro.pt/automoveis/',cars=cars)
     content=json.dumps(data,ensure_ascii=False)
     (ROOT/'stock.json').write_text(content)
