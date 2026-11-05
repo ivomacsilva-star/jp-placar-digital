@@ -1,5 +1,5 @@
 """Read only the public catalogue; never persist raw API data or public site tokens."""
-import json, re, unicodedata, urllib.request, io, os, tempfile
+import json, re, unicodedata, urllib.request, io, os, tempfile, hashlib
 from datetime import datetime, timezone
 from pathlib import Path
 import qrcode
@@ -29,10 +29,22 @@ def build(raw):
     if not cars: raise ValueError('Sem viaturas disponíveis: manter publicação anterior e investigar')
     return cars
 
+def rotate_catalogue(cars, now):
+    # Stable pseudo-random ordering: advance seven places every two-hour UTC slot.
+    # Keep the full catalogue for diagnostics; the normal player displays its first seven.
+    ordered = sorted(cars, key=lambda c: hashlib.sha256(
+        ('P034-groups-v1:' + c['id']).encode('utf-8')).hexdigest())
+    if not ordered:
+        return []
+    slot = int(now.timestamp()) // (2 * 3600)
+    offset = (slot * 7) % len(ordered)
+    return ordered[offset:] + ordered[:offset]
+
 def main():
     env=json.loads(fetch(BASE+'env'))
     raw=json.loads(fetch('https://ws.easydata.pt/v1/easydata/carros/GetListaDetalhesViatura/?dealer_id=21996',{'token':env['REACT_APP_TOKEN_API'],'Origin':'https://jorgepinheiro.pt'}))
-    cars=build(raw)
+    now=datetime.now(timezone.utc)
+    cars=rotate_catalogue(build(raw), now)
     # All assets must succeed before publishing a new catalogue. CI deployment is atomic.
     assets=ROOT/'assets'; assets.mkdir(exist_ok=True)
     for c in cars:
@@ -45,7 +57,7 @@ def main():
             c['images'].append('assets/'+filename)
         qrcode.make(c['url'],error_correction=qrcode.constants.ERROR_CORRECT_M,box_size=10,border=4).save(assets/(ident+'-qr.png'))
         c['image']=c['images'][0]; c['qr']='assets/'+ident+'-qr.png'
-    data=dict(updated_at=datetime.now(timezone.utc).isoformat(),source='https://jorgepinheiro.pt/automoveis/',cars=cars)
+    data=dict(updated_at=now.isoformat(),source='https://jorgepinheiro.pt/automoveis/',cars=cars)
     content=json.dumps(data,ensure_ascii=False)
     (ROOT/'stock.json').write_text(content)
     (ROOT/'stock.js').write_text('window.P034_STOCK='+content+';')
