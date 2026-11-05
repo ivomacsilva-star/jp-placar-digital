@@ -25,9 +25,9 @@ function report(kind,url,reason){
     diagnostic();
 }
 function diagnostic(){
-    if(!debugging()){return;}
+    if(!test8){return;}
     var box=el('diagnostic');if(!box){box=document.createElement('div');box.id='diagnostic';box.style.cssText='position:fixed;bottom:12px;left:12px;right:12px;z-index:999;background:#000;color:#fff;padding:12px;font:16px monospace;white-space:pre-wrap';document.body.appendChild(box);}
-    box.textContent='P034 media-v5-7 · '+(index+1)+' / '+cars.length+' · carregadas: '+mediaLoads+' · '+Math.floor((Date.now()-boot)/1000)+' s'+(test8?' · INICIO 8':'')+'\n'+probeResults.concat(mediaErrors).join('\n');
+    box.textContent='P034 media-v6-clean · '+(index+1)+' / '+cars.length+' · carregadas: '+mediaLoads+' · '+Math.floor((Date.now()-boot)/1000)+' s'+(test8?' · INICIO 8':'')+'\n'+probeResults.concat(mediaErrors).join('\n');
 }
 function mediaLoader(id){
     var serial=0,active=null;
