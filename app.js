@@ -27,7 +27,7 @@ function report(kind,url,reason){
 function diagnostic(){
     if(!test8){return;}
     var box=el('diagnostic');if(!box){box=document.createElement('div');box.id='diagnostic';box.style.cssText='position:fixed;bottom:12px;left:12px;right:12px;z-index:999;background:#000;color:#fff;padding:12px;font:16px monospace;white-space:pre-wrap';document.body.appendChild(box);}
-    box.textContent='P034 media-v6-clean · '+(index+1)+' / '+cars.length+' · carregadas: '+mediaLoads+' · '+Math.floor((Date.now()-boot)/1000)+' s'+(test8?' · INICIO 8':'')+'\n'+probeResults.concat(mediaErrors).join('\n');
+    box.textContent='P034 media-v7-refresh · '+(index+1)+' / '+cars.length+' · carregadas: '+mediaLoads+' · '+Math.floor((Date.now()-boot)/1000)+' s'+(test8?' · INICIO 8':'')+'\n'+probeResults.concat(mediaErrors).join('\n');
 }
 function mediaLoader(id){
     var serial=0,active=null;
@@ -63,5 +63,33 @@ function show(){if(!valid()||!cars.length){empty();return;}var c=cars[index];el(
 function load(){cars=(data.cars||[]).filter(function(c){return c.sold===false&&c.reserved===false;});if(!test8){cars=cars.slice(0,7);}index=test8&&cars.length>7?7:0;show();}
 window.onresize=fit;fit();load();
 setInterval(function(){if(!valid()){empty();return;}var elapsed=Date.now()-started;el('bar').style.width=Math.min(100,elapsed/duration*100)+'%';if(elapsed>=duration&&cars.length){index=(index+1)%cars.length;show();}else if(cars.length){var count=cars[index].images&&cars[index].images.length?cars[index].images.length:1;showPhoto(Math.min(count-1,Math.floor(elapsed/(duration/count))));}},200);
-setInterval(function(){var x=new XMLHttpRequest();x.open('GET','stock.json?t='+Date.now(),true);x.timeout=15000;x.onload=function(){if(x.status===200){try{var next=JSON.parse(x.responseText);if(next.updated_at!==data.updated_at){data=next;load();}}catch(e){}}};x.send();},300000);
+var stockFailures=0,reloading=false;
+function renew(){
+    if(reloading){return;}reloading=true;
+    var query=window.location.search||'';
+    query=query.replace(/([?&])p034_reload=[^&]*&?/g,'$1').replace(/[?&]$/,'');
+    window.location.replace(window.location.pathname+query+(query?'&':'?')+'p034_reload='+Date.now()+(window.location.hash||''));
+}
+function refreshStock(){
+    var x=new XMLHttpRequest(),done=false;
+    function failed(){if(done){return;}done=true;stockFailures++;if(stockFailures>=3){renew();}}
+    try{
+        x.open('GET','stock.json?t='+Date.now(),true);x.timeout=15000;
+        x.onerror=failed;x.ontimeout=failed;
+        x.onload=function(){
+            if(done){return;}
+            if(x.status!==200){failed();return;}
+            try{
+                var next=JSON.parse(x.responseText);
+                if(!next||!next.updated_at||!Array.isArray(next.cars)){failed();return;}
+                done=true;stockFailures=0;
+                if(next.updated_at!==data.updated_at){data=next;load();}
+            }catch(e){failed();}
+        };
+        x.send();
+    }catch(e){failed();}
+}
+setInterval(refreshStock,300000);
+// A full navigation renews the LG reader's network session, including after failed XHRs.
+setInterval(function(){if(Date.now()-boot>=30*60000){renew();}},1000);
 }());
