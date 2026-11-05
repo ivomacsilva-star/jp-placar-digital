@@ -30,13 +30,13 @@ def build(raw):
     return cars
 
 def rotate_catalogue(cars, now):
-    # Stable pseudo-random ordering: advance seven places every two-hour UTC slot.
+    # Stable pseudo-random ordering: advance seven places every half-hour UTC slot.
     # Keep the full catalogue for diagnostics; the normal player displays its first seven.
     ordered = sorted(cars, key=lambda c: hashlib.sha256(
         ('P034-groups-v1:' + c['id']).encode('utf-8')).hexdigest())
     if not ordered:
         return []
-    slot = int(now.timestamp()) // (2 * 3600)
+    slot = int(now.timestamp()) // (30 * 60)
     offset = (slot * 7) % len(ordered)
     return ordered[offset:] + ordered[:offset]
 
