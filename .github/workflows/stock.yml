@@ -2,7 +2,7 @@ name: Atualizar placar P034
 on:
   workflow_dispatch:
   schedule:
-    - cron: '17 */2 * * *'
+    - cron: '7,37 * * * *'
   push:
     branches: [main]
 permissions:
